@@ -45,6 +45,10 @@ def run_walk_forward(
 
     print(f"[1/5] サプライズ計算: {len(surprises)} 件 / ユニバース {n_universe} 銘柄")
 
+    # X非依存のシグナル特徴量(売買代金・RSI・ボラ)は全期間分を1回だけ計算し、
+    # 最良パラメータの IS/OOS 再実行でも使い回す(grid_search 内は期間限定で別計算)。
+    features_all = signals.compute_signal_features(surprises, quotes_by_code)
+
     # --- in-sample グリッドサーチ ---
     print(f"[2/5] in-sample グリッドサーチ ({wf.is_start}〜{wf.is_end}) ...")
     grid_results = backtest.grid_search(
@@ -68,7 +72,9 @@ def run_walk_forward(
 
     # --- IS の最良パラメータでトレードログを再生成 ---
     is_sigs = backtest._filter_signals_by_period(
-        signals.generate_signals(surprises, quotes_by_code, best_params),
+        signals.generate_signals(
+            surprises, quotes_by_code, best_params, features=features_all
+        ),
         wf.is_start, wf.is_end,
     )
     is_trades, is_equity = backtest.run_backtest(is_sigs, quotes_by_code, best_params)
@@ -78,7 +84,9 @@ def run_walk_forward(
     # --- out-of-sample 検証 ---
     print(f"[4/5] out-of-sample 検証 ({wf.oos_start}〜{wf.oos_end}) ...")
     oos_sigs = backtest._filter_signals_by_period(
-        signals.generate_signals(surprises, quotes_by_code, best_params),
+        signals.generate_signals(
+            surprises, quotes_by_code, best_params, features=features_all
+        ),
         wf.oos_start, wf.oos_end,
     )
     oos_trades, oos_equity = backtest.run_backtest(oos_sigs, quotes_by_code, best_params)

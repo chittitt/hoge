@@ -176,6 +176,7 @@ def generate_signals(
     quotes_by_code: dict[str, pd.DataFrame],
     params: "config.StrategyParams",
     portfolio: "config.PortfolioConfig" = config.PORTFOLIO,
+    features: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
     サプライズ表 + 価格から、全エントリーフィルタを満たすシグナルを抽出。
@@ -191,6 +192,28 @@ def generate_signals(
       Code, DisclosedDate, PeriodType, SurprisePct, AvgTurnover,
       OperatingMargin, RSI, AnnualVol
     エントリー日(翌営業日寄付)の確定は backtest 側で行う。
+
+    features に compute_signal_features() の結果を渡すと、X非依存の
+    特徴量計算をスキップして閾値フィルタのみ適用する(グリッドサーチ高速化)。
+    """
+    if features is None:
+        features = compute_signal_features(surprises, quotes_by_code, portfolio)
+    out = features.loc[features["SurprisePct"] >= params.surprise_threshold]
+    return out.reset_index(drop=True)
+
+
+def compute_signal_features(
+    surprises: pd.DataFrame,
+    quotes_by_code: dict[str, pd.DataFrame],
+    portfolio: "config.PortfolioConfig" = config.PORTFOLIO,
+) -> pd.DataFrame:
+    """
+    X(サプライズ閾値)に依存しないフィルタ特徴量を一括計算する前段。
+
+    価格ベースの特徴量(売買代金・RSI・ボラ)は行あたりのコストが高いため、
+    グリッドサーチで X ごとに48回再計算せず、ここで1回だけ計算して
+    静的フィルタ(流動性・利益率・RSI・ボラ)通過行のみ返す。
+    X の適用は generate_signals 側で行う。
     """
     cols = [
         "Code", "DisclosedDate", "PeriodType", "SurprisePct", "AvgTurnover",
@@ -201,10 +224,7 @@ def generate_signals(
 
     rows = []
     for r in surprises.itertuples(index=False):
-        # 1) サプライズ閾値
-        if r.SurprisePct < params.surprise_threshold:
-            continue
-        # 3) 営業利益率(決算の累計実績ベース。開示情報なのでルックアヘッドではない)
+        # 営業利益率(決算の累計実績ベース。開示情報なのでルックアヘッドではない)
         op_margin = getattr(r, "OperatingMargin", float("nan"))
         if pd.isna(op_margin) or op_margin < portfolio.min_operating_margin:
             continue
@@ -213,17 +233,17 @@ def generate_signals(
         if quotes is None or quotes.empty:
             continue
 
-        # 2) 流動性
+        # 流動性
         avg_turnover = average_turnover_before(
             quotes, r.DisclosedDate, portfolio.turnover_window
         )
         if avg_turnover < portfolio.min_turnover:
             continue
-        # 4) RSI 上限
+        # RSI 上限
         rsi = rsi_before(quotes, r.DisclosedDate, portfolio.rsi_period)
         if pd.isna(rsi) or rsi > portfolio.rsi_upper:
             continue
-        # 5) 年率ボラティリティ上限
+        # 年率ボラティリティ上限
         ann_vol = annualized_vol_before(
             quotes, r.DisclosedDate, portfolio.vol_window, portfolio.trading_days_per_year
         )

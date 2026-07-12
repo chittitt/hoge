@@ -57,33 +57,46 @@ def _next_trading_day_index(dates: pd.DatetimeIndex, after: pd.Timestamp) -> int
 # ---------------------------------------------------------------------------
 # シミュレーション本体
 # ---------------------------------------------------------------------------
+def build_trading_calendar(quotes_by_code: dict[str, pd.DataFrame]) -> pd.DatetimeIndex:
+    """全銘柄共通の営業日カレンダー(価格が存在する日の和集合)。"""
+    all_dates = pd.DatetimeIndex([])
+    for df in quotes_by_code.values():
+        if df is not None and not df.empty:
+            all_dates = all_dates.union(pd.DatetimeIndex(df["Date"]))
+    return all_dates.sort_values()
+
+
+def build_price_map(quotes_by_code: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """各銘柄の価格を日付 index の DataFrame に変換(高速アクセス用)。
+    グリッドサーチではこれを1回だけ構築して全パラメータ組で使い回す。"""
+    return {
+        code: df.set_index("Date").sort_index()
+        for code, df in quotes_by_code.items()
+        if df is not None and not df.empty
+    }
+
+
 def run_backtest(
     signals: pd.DataFrame,
     quotes_by_code: dict[str, pd.DataFrame],
     params: "config.StrategyParams",
     portfolio: "config.PortfolioConfig" = config.PORTFOLIO,
     trading_calendar: pd.DatetimeIndex | None = None,
+    price_map: dict[str, pd.DataFrame] | None = None,
 ) -> tuple[list[Trade], pd.DataFrame]:
     """
     シグナルからトレードを生成し、日次エクイティカーブを構築する。
 
+    trading_calendar / price_map を渡すと再構築をスキップする
+    (グリッドサーチでの使い回し用)。省略時は quotes_by_code から構築。
+
     返り値: (trades, equity_curve)
       equity_curve: index=営業日, 列=["equity"] の DataFrame
     """
-    # 全銘柄共通の営業日カレンダー(価格が存在する日の和集合)
     if trading_calendar is None:
-        all_dates = pd.DatetimeIndex([])
-        for df in quotes_by_code.values():
-            if df is not None and not df.empty:
-                all_dates = all_dates.union(pd.DatetimeIndex(df["Date"]))
-        trading_calendar = all_dates.sort_values()
-
-    # 各銘柄の価格を日付 index の DataFrame にしておく(高速アクセス)
-    price_map = {
-        code: df.set_index("Date").sort_index()
-        for code, df in quotes_by_code.items()
-        if df is not None and not df.empty
-    }
+        trading_calendar = build_trading_calendar(quotes_by_code)
+    if price_map is None:
+        price_map = build_price_map(quotes_by_code)
 
     # 開示日 → その日開示のシグナル一覧(サプライズ降順)
     signals = signals.sort_values(["DisclosedDate", "SurprisePct"], ascending=[True, False])
@@ -330,15 +343,29 @@ def grid_search(
 ) -> pd.DataFrame:
     """
     指定期間(in-sample)で全パラメータ組をバックテストし、指標表を返す。
-    signals は各パラメータの X 閾値に依存するため、組ごとに生成する。
+
+    高速化のため、X 非依存の計算は組をまたいで1回だけ行う:
+      - シグナル特徴量(売買代金・RSI・ボラ)は compute_signal_features で前計算
+      - 営業日カレンダー・価格インデックスも1回だけ構築して使い回す
+    各組では X 閾値フィルタとシミュレーションのみ実行する。
     """
     from src import signals as sig_mod
 
+    # X 非依存の前計算(48組で使い回す)
+    features = sig_mod.compute_signal_features(surprises, quotes_by_code, portfolio)
+    features = _filter_signals_by_period(features, period_start, period_end)
+    calendar = build_trading_calendar(quotes_by_code)
+    price_map = build_price_map(quotes_by_code)
+
     results = []
     for params in grid.combinations():
-        sigs = sig_mod.generate_signals(surprises, quotes_by_code, params, portfolio)
-        sigs = _filter_signals_by_period(sigs, period_start, period_end)
-        trades, equity = run_backtest(sigs, quotes_by_code, params, portfolio)
+        sigs = sig_mod.generate_signals(
+            surprises, quotes_by_code, params, portfolio, features=features
+        )
+        trades, equity = run_backtest(
+            sigs, quotes_by_code, params, portfolio,
+            trading_calendar=calendar, price_map=price_map,
+        )
         metrics = compute_metrics(trades, equity, portfolio)
         results.append(
             {
