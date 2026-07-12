@@ -1,0 +1,16 @@
+# 秘密情報
+.env
+
+# データキャッシュ・出力(再生成可能)
+data/*.parquet
+results/*.csv
+results/*.png
+results/*.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
