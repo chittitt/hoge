@@ -59,6 +59,9 @@ def generate(
             surprise = float(rng.uniform(-25, 40))
             prorated = base_forecast * fraction
             actual_op = prorated * (1 + surprise / 100.0)
+            # 売上高は営業利益率(3〜18%)から逆算。約6割が営業利益率フィルタ(8%)を通る想定。
+            op_margin = float(rng.uniform(0.03, 0.18))
+            net_sales = actual_op / op_margin if op_margin > 0 else actual_op * 10
 
             if surprise > 0:
                 # 開示翌日から drift_days 営業日かけて上方ドリフトを上乗せ
@@ -78,6 +81,7 @@ def generate(
                     "TypeOfCurrentPeriod": period,
                     "OperatingProfit": str(int(actual_op)),
                     "ForecastOperatingProfit": str(int(base_forecast)),
+                    "NetSales": str(int(net_sales)),
                 }
             )
             # 年度替わりで通期計画を更新

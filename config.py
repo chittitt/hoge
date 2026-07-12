@@ -42,6 +42,13 @@ class PortfolioConfig:
     fee_rate: float = 0.001                # 片道手数料+スリッページ 0.1%
     min_turnover: float = 100_000_000.0    # 流動性フィルタ Y:直近20日平均売買代金(円)
     turnover_window: int = 20              # 平均売買代金の算出日数
+    # 追加エントリーフィルタ(すべて発表日より前のデータのみで判定=ルックアヘッド排除)
+    rsi_period: int = 14                   # RSI の期間(Wilder 平滑)
+    rsi_upper: float = 55.0                # RSI 上限:これ以下(過熱・急騰後を除外)
+    min_operating_margin: float = 8.0      # 営業利益率の下限(%):営業利益 ÷ 売上高
+    vol_window: int = 20                   # ボラティリティ算出の営業日数
+    max_annual_vol: float = 60.0           # 年率ボラティリティの上限(%)。60%≒日次±3.8%
+    trading_days_per_year: int = 252       # ボラティリティ年率換算の営業日数
 
 
 # ---------------------------------------------------------------------------
