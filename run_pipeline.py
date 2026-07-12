@@ -133,10 +133,19 @@ def main() -> int:
                     help="合成データ1銘柄・1年で疎通確認のみ")
     ap.add_argument("--synthetic", action="store_true",
                     help="合成データ全体で walk-forward 実行(APIキー不要)")
+    ap.add_argument("--screen", action="store_true",
+                    help="全フィルタを満たす直近の候補銘柄を一覧表示(発掘用)")
+    ap.add_argument("--screen-top", type=int, default=20,
+                    help="--screen で表示する最大件数(既定20)")
+    ap.add_argument("--screen-x", type=float, default=None,
+                    help="--screen のサプライズ閾値X(既定は最小グリッド値)")
     args = ap.parse_args()
 
     if args.smoke:
         return run_smoke()
+
+    if args.screen:
+        return run_screen(args)
 
     if args.synthetic:
         from src import synthetic
@@ -179,6 +188,56 @@ def run_smoke() -> int:
           f"期待リターン {metrics['expectancy_pct']:.2f}% / "
           f"勝率 {metrics['win_rate']:.1f}%")
     print("スモークテスト OK: パイプライン疎通確認完了")
+    return 0
+
+
+def run_screen(args) -> int:
+    """
+    全エントリーフィルタ(サプライズ/流動性/営業利益率/RSI上限/年率ボラ上限)を
+    満たす候補銘柄を、開示日の新しい順に一覧表示する「銘柄発掘」モード。
+
+    --synthetic 併用で合成データ、無指定なら J-Quants 実データを対象にする。
+    各条件は開示日より前のデータのみで判定しており、ルックアヘッドは無い。
+    """
+    if args.synthetic:
+        from src import synthetic
+        print("=== 候補銘柄スクリーニング(合成データ) ===")
+        quotes, stmts = synthetic.generate()
+    else:
+        print("=== 候補銘柄スクリーニング(J-Quants 実データ) ===")
+        quotes, stmts = load_real_data()
+
+    surprises = _prepare_surprises(stmts)
+    # 保有日数・損切りはスクリーニングに無関係。X はグリッド最小値 or 指定値。
+    x = args.screen_x if args.screen_x is not None else min(config.PARAM_GRID.surprise_thresholds)
+    params = config.StrategyParams(surprise_threshold=x, hold_days=5, stop_loss=None)
+    sigs = signals.generate_signals(surprises, quotes, params)
+
+    p = config.PORTFOLIO
+    print(f"\nフィルタ条件: サプライズ≥{x:g}% / 売買代金≥{p.min_turnover:,.0f}円 / "
+          f"営業利益率≥{p.min_operating_margin:g}% / RSI≤{p.rsi_upper:g} / "
+          f"年率ボラ≤{p.max_annual_vol:g}%")
+    print(f"該当: {len(sigs)} 件\n")
+
+    if sigs.empty:
+        print("条件を満たす銘柄はありませんでした。")
+        return 0
+
+    view = sigs.sort_values("DisclosedDate", ascending=False).head(args.screen_top).copy()
+    view["DisclosedDate"] = view["DisclosedDate"].dt.date
+    view = view.rename(columns={
+        "SurprisePct": "Surprise%", "OperatingMargin": "OpMargin%",
+        "AnnualVol": "AnnVol%", "AvgTurnover": "AvgTurnover(円)",
+    })
+    cols = ["Code", "DisclosedDate", "PeriodType", "Surprise%",
+            "OpMargin%", "RSI", "AnnVol%", "AvgTurnover(円)"]
+    with pd.option_context("display.max_rows", None, "display.width", 200,
+                           "display.float_format", lambda v: f"{v:,.2f}"):
+        print(view[cols].to_string(index=False))
+
+    out = config.RESULTS_DIR / "screen_candidates.csv"
+    view[cols].to_csv(out, index=False, encoding="utf-8-sig")
+    print(f"\n→ {out}")
     return 0
 
 

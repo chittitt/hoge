@@ -131,7 +131,11 @@ walk-forward で検証した結果サマリ。第一評価軸は勝率ではな�
 - ユニバース銘柄数: {n_universe}(廃止銘柄を含め生存者バイアスを排除)
 - 資金 {config.PORTFOLIO.initial_capital:,.0f} 円 / 1銘柄 {config.PORTFOLIO.position_fraction:.0%} / 同時最大 {config.PORTFOLIO.max_positions} 銘柄
 - 手数料+スリッページ 片道 {config.PORTFOLIO.fee_rate:.1%}
-- 流動性フィルタ: 直近{config.PORTFOLIO.turnover_window}日平均売買代金 ≥ {config.PORTFOLIO.min_turnover:,.0f} 円
+- エントリーフィルタ(すべて開示日より前のデータのみで判定):
+  - 流動性: 直近{config.PORTFOLIO.turnover_window}日平均売買代金 ≥ {config.PORTFOLIO.min_turnover:,.0f} 円
+  - 営業利益率 ≥ {config.PORTFOLIO.min_operating_margin:g}%(営業利益 ÷ 売上高)
+  - RSI({config.PORTFOLIO.rsi_period}) ≤ {config.PORTFOLIO.rsi_upper:g}(過熱・急騰後を除外)
+  - 年率ボラティリティ(直近{config.PORTFOLIO.vol_window}日) ≤ {config.PORTFOLIO.max_annual_vol:g}%
 
 ## 選択された最良パラメータ(in-sample 最適)
 
