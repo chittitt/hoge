@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>オッズ期待値チェッカー — 危険な人気馬・穴候補 発見ツール</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1a1d21; --sub: #5b6470;
+    --border: #dde1e6; --accent: #1a56db; --accent-bg: #e8f0fe;
+    --danger: #c0392b; --danger-bg: #fdecea;
+    --hole: #7b3fa0; --hole-bg: #f3e9fb;
+    --good: #1e7e34; --good-bg: #e6f4ea;
+    --warn: #b7791f; --warn-bg: #fdf3e0;
+    --mute-bg: #eceef1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --card: #1e2227; --text: #e7eaee; --sub: #9aa4b0;
+      --border: #333a42; --accent: #6ea8fe; --accent-bg: #1d2b45;
+      --danger: #ff7b6b; --danger-bg: #3a2220;
+      --hole: #c99aec; --hole-bg: #322340;
+      --good: #6fcf8f; --good-bg: #1e3326;
+      --warn: #e8b25a; --warn-bg: #3a2f1a;
+      --mute-bg: #2a2f36;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --card: #1e2227; --text: #e7eaee; --sub: #9aa4b0;
+    --border: #333a42; --accent: #6ea8fe; --accent-bg: #1d2b45;
+    --danger: #ff7b6b; --danger-bg: #3a2220;
+    --hole: #c99aec; --hole-bg: #322340;
+    --good: #6fcf8f; --good-bg: #1e3326;
+    --warn: #e8b25a; --warn-bg: #3a2f1a;
+    --mute-bg: #2a2f36;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1a1d21; --sub: #5b6470;
+    --border: #dde1e6; --accent: #1a56db; --accent-bg: #e8f0fe;
+    --danger: #c0392b; --danger-bg: #fdecea;
+    --hole: #7b3fa0; --hole-bg: #f3e9fb;
+    --good: #1e7e34; --good-bg: #e6f4ea;
+    --warn: #b7791f; --warn-bg: #fdf3e0;
+    --mute-bg: #eceef1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+    font-size: 14px; line-height: 1.6; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 8px 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 10px; border-left: 4px solid var(--accent); padding-left: 8px; }
+  .tagline { color: var(--sub); font-size: 12px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px; }
+  textarea { width: 100%; min-height: 140px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 13px;
+    font-family: Consolas, Menlo, monospace; resize: vertical; }
+  label { font-size: 13px; color: var(--sub); }
+  select, input[type=text], input[type=number] { background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+  input[type=number] { width: 90px; }
+  button { background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 9px 18px; font-size: 14px; cursor: pointer; font-weight: 600; }
+  button.secondary { background: var(--mute-bg); color: var(--text); font-weight: 400; }
+  button:hover { opacity: .9; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 10px 0; }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .checks { display: flex; flex-wrap: wrap; gap: 14px; }
+  .checks label { display: flex; align-items: center; gap: 5px; color: var(--text); cursor: pointer; }
+  .tablebox { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border: 1px solid var(--border); padding: 5px 8px; text-align: center; white-space: nowrap; }
+  th { background: var(--mute-bg); font-weight: 600; }
+  td.name { text-align: left; font-weight: 600; }
+  td input[type=number] { width: 70px; }
+  td select { font-size: 12px; }
+  tr.band-danger { background: var(--danger-bg); }
+  tr.band-fav { background: var(--accent-bg); }
+  tr.band-hole { background: var(--hole-bg); }
+  .badge { display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+  .b-danger { background: var(--danger); color: #fff; }
+  .b-good { background: var(--good); color: #fff; }
+  .b-hole { background: var(--hole); color: #fff; }
+  .b-warn { background: var(--warn); color: #fff; }
+  .b-mute { background: var(--mute-bg); color: var(--sub); }
+  .result-block { border-radius: 8px; padding: 12px 14px; margin: 10px 0; border: 1px solid var(--border); }
+  .r-danger { background: var(--danger-bg); border-color: var(--danger); }
+  .r-good   { background: var(--good-bg); border-color: var(--good); }
+  .r-hole   { background: var(--hole-bg); border-color: var(--hole); }
+  .r-warn   { background: var(--warn-bg); border-color: var(--warn); }
+  .r-mute   { background: var(--mute-bg); }
+  .result-block h3 { margin: 0 0 6px; font-size: 14px; }
+  .result-block ul { margin: 4px 0; padding-left: 20px; }
+  .rule { color: var(--sub); font-size: 11px; }
+  .score-bar { height: 14px; border-radius: 7px; background: var(--mute-bg); overflow: hidden; margin: 6px 0; }
+  .score-fill { height: 100%; border-radius: 7px; transition: width .4s; }
+  .big { font-size: 22px; font-weight: 800; }
+  .hint { font-size: 12px; color: var(--sub); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+  .footnote { color: var(--sub); font-size: 11px; margin-top: 20px; }
+  @media (max-width: 640px) { .row { flex-direction: column; align-items: stretch; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏇 オッズ期待値チェッカー</h1>
+  <div class="tagline">出馬表とオッズから「危険な人気馬」「◎候補」「穴候補」を洗い出し、勝負レースかどうかを判定するツール。予想の出発点は「どんな馬が人気になっているか」。</div>
+
+  <!-- ========== STEP 1: 貼り付け ========== -->
+  <div class="card">
+    <h2>STEP 1｜ネット競馬の出馬表を貼り付け</h2>
+    <p class="hint">netkeiba の出馬表ページ（オッズ表示あり）で表を範囲選択してコピーし、そのまま下に貼り付けてください。
+    「馬番, 馬名, オッズ」のカンマ／タブ区切り（1行1頭）でもOK。パース結果は STEP 2 の表で修正できます。</p>
+    <textarea id="pasteArea" placeholder="例（簡易形式）:
+1, ドウデュース, 2.1
+2, ジャスティンパレス, 4.5
+3, ディープボンド, 12.8
+..."></textarea>
+    <div class="row">
+      <button onclick="parseInput()">出馬表を読み込む</button>
+      <button class="secondary" onclick="addRow()">＋ 手動で1頭追加</button>
+      <button class="secondary" onclick="clearAll()">クリア</button>
+      <span id="parseMsg" class="hint"></span>
+    </div>
+  </div>
+
+  <!-- ========== STEP 2: レース条件 & 馬一覧 ========== -->
+  <div class="card">
+    <h2>STEP 2｜レース条件と各馬のチェック</h2>
+    <div class="row">
+      <div class="field">
+        <label>レース名（任意）</label>
+        <input type="text" id="raceName" placeholder="例: 小倉11R ○○ステークス" style="width:220px">
+      </div>
+      <div class="field">
+        <label>クラス</label>
+        <select id="raceClass">
+          <option value="maiden">新馬・未勝利</option>
+          <option value="cond" selected>1〜3勝クラス</option>
+          <option value="op">OP・リステッド</option>
+          <option value="g3">重賞 G3</option>
+          <option value="g2">重賞 G2</option>
+          <option value="g1">重賞 G1</option>
+        </select>
+      </div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="chkYoung"> 2〜3歳戦（キャリア浅・比較困難）</label>
+      <label><input type="checkbox" id="chkHandicap"> ハンデ戦</label>
+      <label><input type="checkbox" id="chkSpecial"> 特殊条件・低レベル戦（他人が研究しない土俵）</label>
+      <label><input type="checkbox" id="chkCourse"> コース形態のクセが強い／先行馬占有率が明快</label>
+      <label><input type="checkbox" id="chkStep"> ステップレースが多岐（実績比較が困難）</label>
+    </div>
+    <div class="tablebox" style="margin-top:12px">
+      <table id="horseTable">
+        <thead>
+          <tr>
+            <th>馬番</th><th>馬名</th><th>単勝<br>オッズ</th><th>想定<br>オッズ</th>
+            <th>オッズ帯<br>判定</th>
+            <th>実績はオッズに<br>見合うか？</th>
+            <th>記者の印が<br>集中</th>
+            <th>能力と無関係な<br>人気要因</th>
+            <th>未知・データ<br>不足</th>
+            <th>削除</th>
+          </tr>
+        </thead>
+        <tbody id="horseBody"></tbody>
+      </table>
+    </div>
+    <p class="hint" style="margin-top:8px">
+      「実績はオッズに見合うか？」…単勝10倍以下の馬は必ず検証。<b>納得できない＝危険な人気馬</b>。
+      人気薄（10倍超）の馬は「なぜ人気薄なのか」を考え、<b>納得できる理由がなければ「見合わない（過小評価）」</b>を選ぶと穴候補に残ります。<br>
+      「記者の印が集中」…重い印が集まった馬は期待値が消えたと判断する材料。
+      「能力と無関係な人気要因」…馬名・馬主・血統・騎手人気などで買われている場合にチェック。
+    </p>
+    <div class="row">
+      <div class="field">
+        <label>総資金（円）— 資金管理の計算に使用</label>
+        <input type="number" id="bankroll" placeholder="例: 300000" style="width:140px">
+      </div>
+      <button onclick="analyze()" style="font-size:16px">🔍 分析する</button>
+    </div>
+  </div>
+
+  <!-- ========== STEP 3: 結果 ========== -->
+  <div class="card" id="resultCard" style="display:none">
+    <h2>STEP 3｜分析結果</h2>
+    <div id="raceScoreArea"></div>
+    <div id="results"></div>
+    <details>
+      <summary>判定ロジック（組み込んだルール）を表示</summary>
+      <ul class="hint">
+        <li>単勝10倍以下の馬は「オッズが実績に見合うか」を検証。納得できない人気＝危険な人気馬（第21・22・102・121・184回）</li>
+        <li>危険な人気馬がいるレースが最も儲かる。人気を吸う馬がいれば他馬の期待値は自動的に上乗せ（第155・220回）</li>
+        <li>人気薄の理由に納得できなければ穴候補に残す（第21・98回）</li>
+        <li>単勝1倍台〜2倍台前半は期待値が出にくい。3倍以上なら人気馬でも◎（第19・78・168・201・206回）</li>
+        <li>想定オッズから3割下落したら見送り（第89回）</li>
+        <li>未知・データ不足はむしろ買い材料（第170・183・243回）</li>
+        <li>重賞は比較困難で「実績の割に甘い」馬が生まれやすい（第135・136・139・221回）</li>
+        <li>少頭数はオッズが甘い（第3・120・229回）／2〜3歳戦は過剰人気と過小人気が同時発生（第109・117・118・125・139回）</li>
+        <li>騎手・乗り替わりは買い材料にしない（第105・108・242回）／記者の重い印は期待値消滅のシグナル（第2回）</li>
+        <li>馬名・馬主・血統による人気の偏りも織り込む（第76・77・95・196回）</li>
+        <li>人気−穴の組み合わせが的中率と回収率のバランス最良。穴−穴は回収率が出にくい（第25回）</li>
+        <li>賭け金は総資金の1/100、可能なら1/1000（第50・51回）</li>
+      </ul>
+    </details>
+  </div>
+
+  <div class="footnote">※ このツールは判断の補助です。結論は出馬表とオッズが出てから（第155・224回）。数連敗は下ブレの範囲——参加し続けるための資金管理を（第62・149・166回）。</div>
+</div>
+
+<script>
+'use strict';
+
+/* ================= データ ================= */
+let horses = []; // {num, name, odds, expOdds, meritCheck, heavyMark, biasPop, unknown}
+
+/* ================= パース ================= */
+function parseInput() {
+  const text = document.getElementById('pasteArea').value;
+  if (!text.trim()) { setMsg('テキストが空です'); return; }
+  const parsed = tryParse(text);
+  if (parsed.length === 0) {
+    setMsg('馬名を検出できませんでした。「馬番, 馬名, オッズ」形式で貼るか、手動追加してください。');
+    return;
+  }
+  horses = parsed;
+  renderTable();
+  setMsg(parsed.length + '頭を読み込みました。オッズ・チェック欄を確認してください。');
+}
+
+function tryParse(text) {
+  const out = [];
+  const lines = text.split(/\r?\n/);
+
+  // --- 形式A: 「馬番, 馬名, オッズ」区切り形式（カンマ/タブ/空白） ---
+  const simpleRe = /^\s*(\d{1,2})\s*[,\t，]\s*([ァ-ヶーｦ-ﾟ・]+)\s*[,\t，]?\s*([\d.]+)?/;
+  let simpleHits = 0;
+  for (const line of lines) {
+    const m = line.match(simpleRe);
+    if (m) simpleHits++;
+  }
+  if (simpleHits >= 2) {
+    for (const line of lines) {
+      const m = line.match(simpleRe);
+      if (!m) continue;
+      out.push(newHorse(parseInt(m[1], 10), m[2], m[3] ? parseFloat(m[3]) : null));
+    }
+    return dedupe(out);
+  }
+
+  // --- 形式B: netkeiba コピペ（タブ区切り or 複数行ブロック） ---
+  // 全体をトークン列にし、カタカナ馬名を基準に前後から馬番・オッズを拾う
+  const tokens = text.split(/[\t\r\n]+/).map(t => t.trim()).filter(t => t);
+  const nameRe = /^[ァ-ヶー]{2,9}$/;
+  const sexRe = /^(牡|牝|セ|騸)\d{1,2}$/;
+  // 除外したいカタカナ語（見出しや脚質表示など）
+  const ngNames = new Set(['オッズ','タイム','ペース','マーク','メモ','データ','コース','パドック','チェック','ランキング','レコード','キャンセル','セン']);
+
+  const nameIdxAll = [];
+  tokens.forEach((t, i) => {
+    if (nameRe.test(t) && !ngNames.has(t)) nameIdxAll.push(i);
+  });
+  // 性齢（牡5等）が含まれる貼り付けなら、直後2トークン以内に性齢がある
+  // カタカナのみを馬名とみなす（カタカナの騎手名を除外するため）
+  const hasSex = tokens.some(t => sexRe.test(t));
+  const nameIdx = hasSex
+    ? nameIdxAll.filter(i => {
+        for (let j = i + 1; j <= Math.min(i + 2, tokens.length - 1); j++) {
+          if (sexRe.test(tokens[j])) return true;
+        }
+        return false;
+      })
+    : nameIdxAll;
+
+  for (let k = 0; k < nameIdx.length; k++) {
+    const i = nameIdx[k];
+    const name = tokens[i];
+    const prevBound = k > 0 ? nameIdx[k - 1] : -1;
+    const nextBound = k < nameIdx.length - 1 ? nameIdx[k + 1] : tokens.length;
+
+    // 馬番: 名前より前の直近の 1〜18 の整数
+    let num = null;
+    for (let j = i - 1; j > prevBound; j--) {
+      const t = tokens[j];
+      if (/^\d{1,2}$/.test(t)) {
+        const v = parseInt(t, 10);
+        if (v >= 1 && v <= 18) { num = v; break; }
+      }
+    }
+    // オッズ: 名前より後の小数。ただし性齢（牡5等）の直後の小数は斤量なので除外し、
+    // 斤量になり得る値（48.0〜65.0 の .0/.5 刻み）しか残らない場合は未入力扱いにする
+    let odds = null;
+    const decCandidates = [];
+    for (let j = i + 1; j < nextBound; j++) {
+      const t = tokens[j].replace(/[()（）人気]/g, '');
+      if (/^\d{1,3}\.\d$/.test(t) && !sexRe.test(tokens[j - 1])) {
+        decCandidates.push(parseFloat(t));
+      }
+    }
+    const isKinryo = v => v >= 48 && v <= 65 && (v * 10) % 5 === 0;
+    const nonKinryo = decCandidates.filter(v => !isKinryo(v));
+    if (nonKinryo.length > 0) odds = nonKinryo[0];
+
+    out.push(newHorse(num, name, odds));
+  }
+  return dedupe(out);
+}
+
+function newHorse(num, name, odds) {
+  return { num: num, name: name, odds: odds, expOdds: null,
+           meritCheck: 'none', heavyMark: false, biasPop: false, unknown: false };
+}
+
+function dedupe(list) {
+  const seen = new Set(); const out = [];
+  for (const h of list) {
+    if (seen.has(h.name)) continue;
+    seen.add(h.name); out.push(h);
+  }
+  // 馬番があれば馬番順に
+  out.sort((a, b) => (a.num || 99) - (b.num || 99));
+  out.forEach((h, i) => { if (h.num == null) h.num = i + 1; });
+  return out;
+}
+
+function setMsg(s) { document.getElementById('parseMsg').textContent = s; }
+
+/* ================= テーブル描画 ================= */
+function renderTable() {
+  const tb = document.getElementById('horseBody');
+  tb.innerHTML = '';
+  horses.forEach((h, idx) => {
+    const tr = document.createElement('tr');
+    tr.className = bandClass(h.odds);
+    tr.innerHTML =
+      '<td><input type="number" min="1" max="18" value="' + (h.num ?? '') + '" style="width:52px" onchange="upd(' + idx + ',\'num\',this.value)"></td>' +
+      '<td class="name"><input type="text" value="' + esc(h.name) + '" style="width:150px" onchange="upd(' + idx + ',\'name\',this.value)"></td>' +
+      '<td><input type="number" step="0.1" min="1" value="' + (h.odds ?? '') + '" onchange="upd(' + idx + ',\'odds\',this.value)"></td>' +
+      '<td><input type="number" step="0.1" min="1" value="' + (h.expOdds ?? '') + '" placeholder="任意" onchange="upd(' + idx + ',\'expOdds\',this.value)"></td>' +
+      '<td>' + bandLabel(h.odds) + '</td>' +
+      '<td><select onchange="upd(' + idx + ',\'meritCheck\',this.value)">' +
+        '<option value="none"' + sel(h, 'none') + '>未検証</option>' +
+        '<option value="fair"' + sel(h, 'fair') + '>見合う（納得）</option>' +
+        '<option value="over"' + sel(h, 'over') + '>見合わない（過剰人気）</option>' +
+        '<option value="under"' + sel(h, 'under') + '>見合わない（過小評価）</option>' +
+      '</select></td>' +
+      '<td><input type="checkbox"' + (h.heavyMark ? ' checked' : '') + ' onchange="upd(' + idx + ',\'heavyMark\',this.checked)"></td>' +
+      '<td><input type="checkbox"' + (h.biasPop ? ' checked' : '') + ' onchange="upd(' + idx + ',\'biasPop\',this.checked)"></td>' +
+      '<td><input type="checkbox"' + (h.unknown ? ' checked' : '') + ' onchange="upd(' + idx + ',\'unknown\',this.checked)"></td>' +
+      '<td><button class="secondary" style="padding:2px 8px" onclick="delRow(' + idx + ')">✕</button></td>';
+    tb.appendChild(tr);
+  });
+}
+function sel(h, v) { return h.meritCheck === v ? ' selected' : ''; }
+function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+
+function upd(idx, key, val) {
+  const h = horses[idx];
+  if (key === 'num') h.num = val === '' ? null : parseInt(val, 10);
+  else if (key === 'odds' || key === 'expOdds') { h[key] = val === '' ? null : parseFloat(val); renderTable(); }
+  else if (key === 'name' || key === 'meritCheck') h[key] = val;
+  else h[key] = val; // checkboxes (boolean)
+}
+function addRow() { horses.push(newHorse(horses.length + 1, '', null)); renderTable(); }
+function delRow(idx) { horses.splice(idx, 1); renderTable(); }
+function clearAll() {
+  horses = []; renderTable();
+  document.getElementById('pasteArea').value = '';
+  document.getElementById('resultCard').style.display = 'none';
+  setMsg('');
+}
+
+/* ================= オッズ帯 ================= */
+function bandClass(odds) {
+  if (odds == null) return '';
+  if (odds < 3.0) return 'band-danger';
+  if (odds <= 10.0) return 'band-fav';
+  return 'band-hole';
+}
+function bandLabel(odds) {
+  if (odds == null) return '<span class="badge b-mute">未入力</span>';
+  if (odds < 3.0) return '<span class="badge b-danger">◎不適 (期待値出にくい)</span>';
+  if (odds <= 10.0) return '<span class="badge b-good">要検証 (◎候補圏)</span>';
+  return '<span class="badge b-hole">人気薄 (穴検討)</span>';
+}
+
+/* ================= 分析 ================= */
+function analyze() {
+  if (horses.length === 0) { alert('馬を読み込んでください'); return; }
+  const withOdds = horses.filter(h => h.odds != null);
+
+  // --- 各馬分類 ---
+  const dangerous = [];   // 危険な人気馬
+  const honCands = [];    // ◎候補
+  const holeCands = [];   // 穴候補
+  const lowEvFavs = [];   // 1〜2倍台前半の人気馬
+  const dropped = [];     // 想定比3割下落 → 見送り
+  const unverified = [];  // 10倍以下で未検証
+
+  for (const h of withOdds) {
+    // 想定オッズからの下落チェック（第89回）
+    if (h.expOdds != null && h.odds <= h.expOdds * 0.7) {
+      dropped.push(h);
+      continue;
+    }
+    const markKilled = h.heavyMark; // 記者の重い印 → 期待値消滅（第2回）
+
+    if (h.odds <= 10.0) {
+      // 人気馬ゾーン：実績検証が必須
+      if (h.meritCheck === 'over' || h.biasPop) {
+        dangerous.push(h);
+      } else if (h.meritCheck === 'none') {
+        unverified.push(h);
+      }
+      if (h.odds < 3.0) {
+        lowEvFavs.push(h);
+      } else if (h.meritCheck === 'fair' && !markKilled && !h.biasPop) {
+        honCands.push(h); // 3倍以上＆納得できる人気 → ◎候補（第19回ほか）
+      }
+    } else {
+      // 人気薄ゾーン：人気薄の理由に納得できない or 未知データ不足 → 穴候補
+      if (h.meritCheck === 'under' || h.unknown) {
+        if (!markKilled) holeCands.push(h);
+      }
+    }
+    // 未知・データ不足の人気馬圏（10倍以下）も加点材料として◎候補側に注記される
+    if (h.odds >= 3.0 && h.odds <= 10.0 && h.unknown && h.meritCheck !== 'over' && !markKilled) {
+      if (!honCands.includes(h)) honCands.push(h);
+    }
+  }
+  honCands.sort((a, b) => a.odds - b.odds);
+  holeCands.sort((a, b) => a.odds - b.odds);
+
+  // --- レース勝負度スコア ---
+  const n = withOdds.length || horses.length;
+  const cls = document.getElementById('raceClass').value;
+  const isG = cls === 'g1' || cls === 'g2' || cls === 'g3';
+  let score = 0; const reasons = [];
+
+  if (dangerous.length > 0) {
+    score += 30 + Math.min(10, (dangerous.length - 1) * 5);
+    reasons.push('危険な人気馬が' + dangerous.length + '頭 → 他馬の期待値が自動的に上乗せ（第155・220回）');
+  }
+  if (holeCands.length > 0) {
+    score += 15;
+    reasons.push('納得できない人気薄＝穴候補が' + holeCands.length + '頭（第21・98回）');
+  }
+  if (n <= 10) { score += 20; reasons.push('少頭数(' + n + '頭)はオッズが甘く研究も薄い（第3・120・229回）'); }
+  else if (n <= 12) { score += 12; reasons.push('やや少頭数(' + n + '頭)でオッズが甘くなりやすい（第3・120・229回）'); }
+  if (isG) { score += 10; reasons.push('重賞は比較困難で「実績の割に甘い」馬が生まれやすく、売上でオッズも保たれる（第135・136・139・221回）'); }
+  if (document.getElementById('chkYoung').checked) { score += 10; reasons.push('2〜3歳戦は過剰人気と過小人気が同時に発生（第109・117・118・125・139回）'); }
+  if (document.getElementById('chkHandicap').checked && !isG) { score += 8; reasons.push('重賞以外のハンデ戦は他人が研究しない土俵（第36・90・128・188・215回）'); }
+  if (document.getElementById('chkSpecial').checked) { score += 8; reasons.push('低レベル戦・特殊条件は研究が薄い（第36・90・128・188・215回）'); }
+  if (document.getElementById('chkCourse').checked) { score += 10; reasons.push('コース形態のクセ・先行馬占有率が明快 → わかりやすいコースは捻らなくても当たる（第119・155・219回）'); }
+  if (document.getElementById('chkStep').checked) { score += 6; reasons.push('ステップ多岐で比較困難 → 同じ内容ならオッズがついている側から（第243回）'); }
+  if (honCands.length > 0 && honCands[0].odds >= 3.0) {
+    score += 10; reasons.push('単勝3倍以上で◎を打てる馬が存在 → 単勝で期待値が取れる（第19・30・199回）');
+  }
+  score = Math.min(100, score);
+
+  renderResults({ score, reasons, dangerous, honCands, holeCands, lowEvFavs, dropped, unverified, n });
+}
+
+/* ================= 結果描画 ================= */
+function hname(h) { return h.num + '番 ' + (h.name || '(馬名未入力)') + '（単勝' + h.odds.toFixed(1) + '倍）'; }
+
+function renderResults(r) {
+  const card = document.getElementById('resultCard');
+  card.style.display = '';
+
+  // 勝負度
+  let verdict, color;
+  if (r.score >= 55) { verdict = '勝負レース'; color = 'var(--good)'; }
+  else if (r.score >= 35) { verdict = '検討の価値あり'; color = 'var(--warn)'; }
+  else { verdict = '見送り推奨'; color = 'var(--danger)'; }
+  const raceName = esc(document.getElementById('raceName').value) || 'このレース';
+  document.getElementById('raceScoreArea').innerHTML =
+    '<div class="result-block r-mute">' +
+    '<h3>' + raceName + ' の勝負度: <span class="big" style="color:' + color + '">' + r.score + '点 — ' + verdict + '</span></h3>' +
+    '<div class="score-bar"><div class="score-fill" style="width:' + r.score + '%;background:' + color + '"></div></div>' +
+    (r.reasons.length ? '<ul>' + r.reasons.map(x => '<li>' + x + '</li>').join('') + '</ul>'
+      : '<p>加点要素がありません。基準を満たすレースを厳選しましょう（第119・155・219回）。</p>') +
+    '</div>';
+
+  let html = '';
+
+  // 未検証警告
+  if (r.unverified.length > 0) {
+    html += block('r-warn', '⚠ 未検証の人気馬（単勝10倍以下）',
+      '<p>予想の出発点は人気馬の検証です。以下の馬の「実績はオッズに見合うか？」を判定してから再分析してください（第21・22・102・121・184回）。</p>' +
+      ul(r.unverified.map(hname)));
+  }
+
+  // 危険な人気馬
+  if (r.dangerous.length > 0) {
+    html += block('r-danger', '🚨 危険な人気馬（消し・紐まで）',
+      ul(r.dangerous.map(h => hname(h) +
+        (h.biasPop ? ' — 馬名・馬主・血統など能力と無関係な人気の偏り（第76・77・95・196回）' : '') +
+        (h.meritCheck === 'over' ? ' — 実績がオッズに見合わない過剰人気' : ''))) +
+      '<p>この馬が人気を吸っているぶん、<b>他馬全体の期待値が自動的に上乗せ</b>されています。軸にせず、買うとしても2列目以下まで（第155・220回）。</p>');
+  } else {
+    html += block('r-mute', '危険な人気馬: なし',
+      '<p class="hint">危険な人気馬がいるレースが最も儲かります。全人気馬に納得できるなら、このレースの妙味は限定的です（第155回）。</p>');
+  }
+
+  // ◎候補
+  if (r.honCands.length > 0) {
+    html += block('r-good', '◎ 本命候補（単勝で期待値が取れる馬）',
+      ul(r.honCands.map(h => hname(h) +
+        (h.unknown ? ' — 未知・データ不足は買い材料（第170・183・243回）' : '') +
+        (h.meritCheck === 'fair' ? ' — 実績に見合う人気で3倍以上' : ''))) +
+      '<p>◎は単勝で期待値が取れる馬から。<b>単勝への資金配分を大きく</b>（第30・199回）。</p>');
+  } else {
+    html += block('r-mute', '◎候補: 該当なし',
+      '<p class="hint">単勝3倍以上で「実績に見合う」と判定した馬がいません。穴候補から◎を選ぶか、このレースは見送りを（第19回）。</p>');
+  }
+
+  // 低オッズ人気馬
+  if (r.lowEvFavs.length > 0) {
+    html += block('r-warn', '⚠ 単勝1倍台〜2倍台の馬 — ◎対象外',
+      ul(r.lowEvFavs.map(hname)) +
+      '<p>この帯は単勝の期待値が出にくいゾーンです。実力上位でも◎にはしない。実績に見合わなければ危険な人気馬として絶好の狙い目（第19・78・168・201・206回）。</p>');
+  }
+
+  // 穴候補
+  if (r.holeCands.length > 0) {
+    html += block('r-hole', '💎 穴候補（人気薄の理由に納得できない馬）',
+      ul(r.holeCands.map(h => hname(h) +
+        (h.unknown ? ' — 未知・データ不足は買い材料（第170・183・243回）' : ''))) +
+      '<p>穴馬は「0か100」。すべて噛み合った時だけ好走します。外れても恥じない（第180・190回）。</p>');
+  }
+
+  // 見送り（オッズ下落）
+  if (r.dropped.length > 0) {
+    html += block('r-danger', '📉 想定オッズから3割以上下落 — 見送り',
+      ul(r.dropped.map(h => hname(h) + '（想定' + h.expOdds.toFixed(1) + '倍 → 現在' + h.odds.toFixed(1) + '倍）')) +
+      '<p>単勝は大口が入りやすく下落しやすい。想定から3割落ちたら基本は見送り（第89回）。</p>');
+  }
+
+  // 買い目構築ヒント
+  html += buildBettingHints(r);
+
+  // 資金管理
+  html += buildMoney();
+
+  document.getElementById('results').innerHTML = html;
+  card.scrollIntoView({ behavior: 'smooth' });
+}
+
+function buildBettingHints(r) {
+  const tips = [];
+  tips.push('決着形を先にイメージし、それと矛盾する買い目を削る。予想と買い目の整合性を取れば自然に点数は絞れる（第4・40・49・137回）');
+  if (r.honCands.length > 0 && r.holeCands.length > 0) {
+    tips.push('<b>人気（◎候補）−穴の組み合わせ</b>が的中率と回収率のバランス最良。穴−穴は回収率が出にくい（第25回）');
+  }
+  if (r.honCands.length > 0) {
+    tips.push('◎ ' + r.honCands[0].num + '番の<b>単勝を厚めに</b>。2列目以下は「来る確率」重視で、◎が来る展開で前にいる馬・崩れても届く馬を（第30・38・81・134・167回）');
+  }
+  if (r.dangerous.length > 0) {
+    tips.push('危険な人気馬（' + r.dangerous.map(h => h.num + '番').join('・') + '）は1列目から外す。上位人気が崩れると読むなら<b>複勝</b>、絡むと読むなら<b>ワイド（相手は必ず人気薄）</b>（第35回）');
+  }
+  tips.push('単体の期待値と組み合わせの期待値は別物。◎と穴の両方が高期待値でも、その2頭を結んだ馬券が高期待値とは限らない（第10・210・211・241回）');
+  tips.push('押さえは期待値を下げてまで買わない。買うなら穴を厚く（第123・150回）。一定倍率以下のオッズ切りは不的中を受け入れて長期回収率を取る手法（第175・222回）');
+  tips.push('傾向どおりの馬だけのボックスは買われすぎ。傾向と相反する馬を1頭入れると回収率が上がる（第84回）');
+  return block('r-mute', '🎫 馬券構築ヒント', ul(tips));
+}
+
+function buildMoney() {
+  const bk = parseFloat(document.getElementById('bankroll').value);
+  if (!bk || bk <= 0) {
+    return block('r-mute', '💰 資金管理', '<p class="hint">総資金を入力すると推奨賭け金を計算します。1レースの賭け金は総資金の1/100、可能なら1/1000（第50・51回）。</p>');
+  }
+  const std = Math.floor(bk / 100 / 100) * 100;
+  const safe = Math.floor(bk / 1000 / 100) * 100;
+  return block('r-mute', '💰 資金管理',
+    '<p>総資金 ' + bk.toLocaleString() + '円 に対する1レース上限:</p>' +
+    ul([
+      '標準（1/100）: <b>' + std.toLocaleString() + '円</b>',
+      '安全（1/1000）: <b>' + safe.toLocaleString() + '円</b>',
+      '回収率119%でも1万回試行で10%は負ける。下ブレは必ず来る前提でショートしない設計を（第50・51回）',
+      '増減に応じて賭け金を見直し、レートを一定比率に保つ（第50・163回）',
+      '大当たりの買い逃しが最大の損失。参加し続けるための資金管理（第149・166・195回）'
+    ]));
+}
+
+function block(cls, title, inner) {
+  return '<div class="result-block ' + cls + '"><h3>' + title + '</h3>' + inner + '</div>';
+}
+function ul(items) { return '<ul>' + items.map(x => '<li>' + x + '</li>').join('') + '</ul>'; }
+</script>
+</body>
+</html>
