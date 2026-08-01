@@ -25,6 +25,24 @@
       --mute-bg: #2a2f36;
     }
   }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --card: #1e2227; --text: #e7eaee; --sub: #9aa4b0;
+    --border: #333a42; --accent: #6ea8fe; --accent-bg: #1d2b45;
+    --danger: #ff7b6b; --danger-bg: #3a2220;
+    --hole: #c99aec; --hole-bg: #322340;
+    --good: #6fcf8f; --good-bg: #1e3326;
+    --warn: #e8b25a; --warn-bg: #3a2f1a;
+    --mute-bg: #2a2f36;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1a1d21; --sub: #5b6470;
+    --border: #dde1e6; --accent: #1a56db; --accent-bg: #e8f0fe;
+    --danger: #c0392b; --danger-bg: #fdecea;
+    --hole: #7b3fa0; --hole-bg: #f3e9fb;
+    --good: #1e7e34; --good-bg: #e6f4ea;
+    --warn: #b7791f; --warn-bg: #fdf3e0;
+    --mute-bg: #eceef1;
+  }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
     font-family: "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
