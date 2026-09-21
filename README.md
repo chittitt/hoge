@@ -174,6 +174,21 @@ export HABITS_FILE=~/Dropbox/habits.json
 python habit.py path      # 現在の保存先と件数を表示
 ```
 
+## Claude Code に記録させる運用
+
+自分で叩かず、毎日22:00(JST)に Claude Code から声がかかる形でも使える。
+
+- 記録本体 `habits_data/habits.json` は **リポジトリで追跡する**(コンテナは毎回作り直されるため)。
+  記録した日は Claude Code が `main` に1コミットする。書き出した CSV は追跡しない。
+- セッションのコンテナは UTC 動作なので、日付は必ず JST で明示する:
+
+  ```bash
+  python habit.py done wake 06:12 --date "$(TZ=Asia/Tokyo date +%F)"
+  ```
+
+- 手元から直接叩く運用に戻したいときは、`HABITS_FILE` を自分のパスに向ければよい
+  (リポジトリの記録とは別ファイルになる)。
+
 ## テスト
 
 ```bash

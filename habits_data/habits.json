@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "habits": [
+    {
+      "id": "wake",
+      "name": "6時30分までに起きる",
+      "kind": "time",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": "<=",
+      "target": 390.0,
+      "unit": "",
+      "created": "2026-09-22",
+      "archived": false
+    },
+    {
+      "id": "deep",
+      "name": "集中作業",
+      "kind": "number",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": ">=",
+      "target": 2.0,
+      "unit": "h",
+      "created": "2026-09-22",
+      "archived": false
+    },
+    {
+      "id": "sleep",
+      "name": "24時までに寝る",
+      "kind": "time",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": "<=",
+      "target": 1440.0,
+      "unit": "",
+      "created": "2026-09-22",
+      "archived": false
+    }
+  ],
+  "entries": []
+}
