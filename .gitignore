@@ -14,3 +14,5 @@ __pycache__/
 venv/
 .pytest_cache/
 .ipynb_checkpoints/
+# 習慣トラッカーの個人記録(コミットしない)
+habits_data/
