@@ -41,5 +41,17 @@
       "archived": false
     }
   ],
-  "entries": []
+  "entries": [
+    {
+      "habit": "sleep",
+      "date": "2026-09-21",
+      "value": 1450.0
+    },
+    {
+      "habit": "wake",
+      "date": "2026-09-22",
+      "value": 380.0,
+      "note": "5:31に一度目覚め、二度寝して6:20起床"
+    }
+  ]
 }
