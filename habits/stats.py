@@ -196,3 +196,62 @@ def calendar_line(habit: Habit, entries: list[Entry], start: dt.date, end: dt.da
             marks.append(MARKS[period.status] if period else MARK_OFFDAY)
         day += dt.timedelta(days=1)
     return "".join(marks)
+
+
+# ---------------------------------------------------------------------------
+# 睡眠時間(就寝と起床の記録から導出する)
+# ---------------------------------------------------------------------------
+# 睡眠時間は独立して記録させない。就寝・起床を入れた時点で決まる値なので、
+# 三重に聞くと記録の手間が増えて続かなくなる。
+_BEDTIME_MIN = 20 * 60   # 目標がこれ以降の時刻習慣は「就寝」とみなす
+_WAKEUP_MAX = 12 * 60    # 目標がこれ以前の時刻習慣は「起床」とみなす
+
+
+def detect_sleep_pair(habits: list[Habit]) -> tuple[Habit, Habit] | None:
+    """(就寝, 起床) の組を返す。
+
+    `--role bedtime` / `--role wakeup` の明示指定が最優先。指定が1つも無いときだけ、
+    目標時刻の位置(夜なら就寝、昼前なら起床)から推測する。帰宅時刻のように
+    夜の時刻習慣が増えると推測は成り立たなくなるため、明示指定を正とする。
+    """
+    times = [h for h in habits if h.kind == "time" and not h.archived and h.target is not None]
+    beds = [h for h in times if h.role == "bedtime"]
+    wakes = [h for h in times if h.role == "wakeup"]
+    if len(beds) == 1 and len(wakes) == 1:
+        return beds[0], wakes[0]
+    if any(h.role for h in times):
+        return None  # 明示指定があるなら推測で補わない
+    beds = [h for h in times if h.target >= _BEDTIME_MIN]
+    wakes = [h for h in times if h.target <= _WAKEUP_MAX]
+    if len(beds) == 1 and len(wakes) == 1:
+        return beds[0], wakes[0]
+    return None
+
+
+def sleep_nights(bedtime: Habit, wakeup: Habit, entries: list[Entry], start: dt.date,
+                 end: dt.date) -> list[tuple[dt.date, float]]:
+    """(就寝した日, 睡眠時間の分) の列を返す。
+
+    就寝は当日、起床は翌日の記録なので、日付をまたいで組にする。就寝時刻は
+    24時以降を許す内部表現(24:10 = 1450分)なので、翌日0時からの経過分に
+    直してから引く。両方そろっていない夜は結果に含めない。
+    """
+    beds = {e.date: e.value for e in entries if e.habit_id == bedtime.id}
+    wakes = {e.date: e.value for e in entries if e.habit_id == wakeup.id}
+    nights: list[tuple[dt.date, float]] = []
+    night = start
+    while night <= end:
+        bed = beds.get(night)
+        wake = wakes.get(night + dt.timedelta(days=1))
+        if bed is not None and wake is not None:
+            minutes = (24 * 60 + wake) - bed
+            if 0 < minutes <= 16 * 60:  # 明らかな入力ミスは弾く
+                nights.append((night, minutes))
+        night += dt.timedelta(days=1)
+    return nights
+
+
+def format_duration(minutes: float) -> str:
+    """分を「7時間20分」の形にする。"""
+    total = int(round(minutes))
+    return f"{total // 60}時間{total % 60:02d}分"

@@ -21,6 +21,8 @@ WEEKDAY_JP = "月火水木金土日"
 
 KINDS = ("check", "number", "time")
 COMPARATORS = (">=", "<=")
+# 睡眠時間の算出に使う役割。時刻習慣にだけ意味がある。
+ROLES = ("", "bedtime", "wakeup")
 
 # 夜の目標(これ以降)は記録値の 12:00 未満を翌日とみなす閾値
 _NIGHT_TARGET_MIN = 20 * 60
@@ -172,6 +174,7 @@ class Habit:
     cmp: str = ">="
     target: float | None = None
     unit: str = ""
+    role: str = ""
     created: dt.date = field(default_factory=dt.date.today)
     archived: bool = False
 
@@ -182,6 +185,10 @@ class Habit:
             raise HabitError(f"cmp は {'/'.join(COMPARATORS)} のいずれか: {self.cmp!r}")
         if self.kind != "check" and self.target is None:
             raise HabitError(f"kind={self.kind} には目標値(--target)が必要: {self.id}")
+        if self.role not in ROLES:
+            raise HabitError(f"role は {'/'.join(r or 'なし' for r in ROLES)} のいずれか: {self.role!r}")
+        if self.role and self.kind != "time":
+            raise HabitError(f"role は時刻習慣にのみ指定できる: {self.id}")
 
     # --- 値の入出力 --------------------------------------------------------
     def parse_value(self, raw: str | float | None) -> float:
@@ -242,6 +249,7 @@ class Habit:
             "cmp": self.cmp,
             "target": self.target,
             "unit": self.unit,
+            "role": self.role,
             "created": self.created.isoformat(),
             "archived": self.archived,
         }
@@ -256,6 +264,7 @@ class Habit:
             cmp=raw.get("cmp", ">="),
             target=raw.get("target"),
             unit=raw.get("unit", ""),
+            role=raw.get("role", ""),
             created=dt.date.fromisoformat(raw["created"]) if raw.get("created") else dt.date.today(),
             archived=bool(raw.get("archived", False)),
         )

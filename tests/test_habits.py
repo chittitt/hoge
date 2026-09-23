@@ -191,6 +191,75 @@ def test_calendar_line_marks():
 
 
 # ---------------------------------------------------------------------------
+# 睡眠時間(就寝・起床から導出)
+# ---------------------------------------------------------------------------
+def _sleep_pair(with_roles: bool = False) -> tuple[Habit, Habit]:
+    bed = _habit(id="sleep", name="24時までに寝る", kind="time",
+                 target=parse_clock("24:00"), cmp="<=",
+                 role="bedtime" if with_roles else "")
+    wake = _habit(id="wake", name="6時30分までに起きる", kind="time",
+                  target=parse_clock("06:30"), cmp="<=",
+                  role="wakeup" if with_roles else "")
+    return bed, wake
+
+
+def test_sleep_pair_detected_from_targets():
+    """役割の指定が無い場合は、目標時刻の位置から (就寝, 起床) を推定すること。"""
+    bed, wake = _sleep_pair()
+    deep = _habit(id="deep", kind="number", target=2.0)
+    assert stats.detect_sleep_pair([wake, deep, bed]) == (bed, wake)
+    # 起床候補が2つあると推定しない(昼寝などを時刻習慣にしている場合)
+    nap = _habit(id="nap", kind="time", target=parse_clock("11:00"), cmp="<=")
+    assert stats.detect_sleep_pair([wake, bed, nap]) is None
+    # 片方しかなければ推定しない
+    assert stats.detect_sleep_pair([wake]) is None
+
+
+def test_explicit_roles_survive_other_time_habits():
+    """帰宅時刻のような夜の時刻習慣が増えても、役割の指定があれば組が壊れないこと。"""
+    bed, wake = _sleep_pair(with_roles=True)
+    home = _habit(id="home", name="20時までに帰宅", kind="time",
+                  target=parse_clock("20:00"), cmp="<=")
+    # 役割なしの推測ではこの構成は判定不能になる
+    assert stats.detect_sleep_pair(_sleep_pair() + (home,)) is None
+    # 役割を明示していれば影響を受けない
+    assert stats.detect_sleep_pair([wake, home, bed]) == (bed, wake)
+
+
+def test_role_only_on_time_habits():
+    """時刻以外の習慣に役割を付けるとエラーになること。"""
+    try:
+        _habit(id="deep", kind="number", target=2.0, role="bedtime")
+    except HabitError:
+        return
+    raise AssertionError("数値習慣に役割が付いてしまった")
+
+
+def test_sleep_duration_spans_midnight():
+    """就寝(前日)と起床(翌日)から睡眠時間が出ること。24時以降の就寝も扱えること。"""
+    bed, wake = _sleep_pair()
+    night = TODAY - dt.timedelta(days=1)
+    entries = [
+        Entry(bed.id, night, parse_clock("23:00")),
+        Entry(wake.id, TODAY, parse_clock("06:00")),
+        Entry(bed.id, night - dt.timedelta(days=1), parse_clock("24:10")),
+        Entry(wake.id, night, parse_clock("06:20")),
+    ]
+    got = dict(stats.sleep_nights(bed, wake, entries, night - dt.timedelta(days=1), TODAY))
+    assert got[night] == 7 * 60                      # 23:00 → 06:00
+    assert got[night - dt.timedelta(days=1)] == 370  # 24:10 → 06:20 = 6時間10分
+    assert stats.format_duration(370) == "6時間10分"
+
+
+def test_sleep_duration_skips_incomplete_nights():
+    """就寝か起床の片方しかない夜は集計に含めないこと。"""
+    bed, wake = _sleep_pair()
+    night = TODAY - dt.timedelta(days=1)
+    entries = [Entry(bed.id, night, parse_clock("23:00"))]  # 翌朝の起床が未記録
+    assert stats.sleep_nights(bed, wake, entries, night, TODAY) == []
+
+
+# ---------------------------------------------------------------------------
 # 保存
 # ---------------------------------------------------------------------------
 def test_storage_roundtrip():

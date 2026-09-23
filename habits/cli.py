@@ -18,7 +18,8 @@ import unicodedata
 from pathlib import Path
 
 from .models import Habit, HabitError, Schedule, WEEKDAY_JP, parse_clock, parse_date
-from .stats import MARKS, HabitStats, calendar_line, summarize
+from .stats import (MARKS, HabitStats, calendar_line, detect_sleep_pair, format_duration,
+                    sleep_nights, summarize)
 from .storage import Tracker
 
 CHECKBOX = {"done": "[■]", "missed": "[×]", "pending": "[ ]"}
@@ -70,6 +71,43 @@ def average_label(stats: HabitStats) -> str:
     return stats.habit.format_value(round(avg, 2) if stats.habit.kind == "number" else avg)
 
 
+def last_night_sleep(tracker: Tracker, day: dt.date) -> str:
+    """その日の朝までの睡眠時間(前夜の就寝→当日の起床)。取れなければ空文字。"""
+    pair = detect_sleep_pair(tracker.habits)
+    if pair is None:
+        return ""
+    night = day - dt.timedelta(days=1)
+    nights = sleep_nights(pair[0], pair[1], tracker.entries, night, night)
+    return format_duration(nights[0][1]) if nights else ""
+
+
+def sleep_section(tracker: Tracker, since: dt.date, until: dt.date) -> str:
+    """睡眠時間の集計。就寝・起床が揃っている夜だけを対象にする。
+
+    睡眠は長さより**ばらつき**が効くので、平均と一緒に最短・最長も出す。
+    """
+    pair = detect_sleep_pair(tracker.habits)
+    if pair is None:
+        return ""
+    bedtime, wakeup = pair
+    nights = sleep_nights(bedtime, wakeup, tracker.entries, since - dt.timedelta(days=1), until)
+    if not nights:
+        return ""
+    values = [m for _, m in nights]
+    avg = sum(values) / len(values)
+    enough = sum(1 for m in values if m >= 7 * 60)
+    lines = [
+        "",
+        f"睡眠時間({bedtime.name} → {wakeup.name} / {len(nights)}泊)",
+        f"  平均 {format_duration(avg)} / 最短 {format_duration(min(values))}"
+        f" / 最長 {format_duration(max(values))}",
+        f"  7時間以上の夜: {enough}/{len(nights)}(ばらつき {format_duration(max(values) - min(values))})",
+    ]
+    for night, minutes in nights[-7:]:
+        lines.append(f"  {date_label(night)}夜  {format_duration(minutes)}")
+    return "\n".join(lines) + "\n"
+
+
 # ---------------------------------------------------------------------------
 # 各コマンド
 # ---------------------------------------------------------------------------
@@ -88,6 +126,7 @@ def cmd_add(tracker: Tracker, args: argparse.Namespace) -> int:
         cmp=args.cmp,
         target=target,
         unit=args.unit,
+        role=args.role or "",
         created=parse_date(args.since) if args.since else dt.date.today(),
     )
     tracker.add_habit(habit)
@@ -152,7 +191,8 @@ def cmd_today(tracker: Tracker, args: argparse.Namespace) -> int:
     if not habits:
         print(f"{date_label(day)}: 対象の習慣なし")
         return 0
-    print(f"{date_label(day)} の習慣 {len(habits)}件")
+    slept = last_night_sleep(tracker, day)
+    print(f"{date_label(day)} の習慣 {len(habits)}件" + (f" / 前夜の睡眠 {slept}" if slept else ""))
     rows = []
     for habit in habits:
         entry = tracker.entry_on(habit.id, day)
@@ -211,6 +251,8 @@ def cmd_report(tracker: Tracker, args: argparse.Namespace) -> int:
             line = calendar_line(habit, tracker.entries, cal_since, until, today=today)
             print(f"  {pad(habit.id, max(width(h.id) for h in habits))}  {line}")
 
+    print(sleep_section(tracker, since, until), end="")
+
     judged = sum(s.judged for s in summaries)
     done = sum(s.done for s in summaries)
     if judged:
@@ -231,6 +273,18 @@ def cmd_log(tracker: Tracker, args: argparse.Namespace) -> int:
     ]
     print(f"{habit.id} 「{habit.name}」 目標 {habit.target_label()}")
     print(render_table(["日付", "実績", "判定", "メモ"], rows))
+    return 0
+
+
+def cmd_role(tracker: Tracker, args: argparse.Namespace) -> int:
+    habit = tracker.get(args.id)
+    role = "" if args.role == "none" else args.role
+    if role and habit.kind != "time":
+        raise HabitError(f"{habit.id} は時刻習慣ではないので就寝/起床の役割を付けられない")
+    habit.role = role
+    tracker.save()
+    label = {"bedtime": "就寝", "wakeup": "起床", "none": "なし"}[args.role]
+    print(f"役割: {habit.id}「{habit.name}」→ {label}")
     return 0
 
 
@@ -312,6 +366,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--target", help="目標値(number は数値、time は HH:MM)")
     p.add_argument("--cmp", choices=[">=", "<="], default=">=", help="目標の向き(既定 >=)")
     p.add_argument("--unit", default="", help="単位(例 h, 回, ページ)")
+    p.add_argument("--role", choices=["bedtime", "wakeup"],
+                   help="時刻習慣の役割。就寝と起床に付けると睡眠時間を自動算出する")
     p.add_argument("--since", help="開始日(既定は今日)")
     p.set_defaults(func=cmd_add)
 
@@ -355,6 +411,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(func=cmd_log)
+
+    p = sub.add_parser("role", help="時刻習慣に就寝/起床の役割を付ける(睡眠時間の算出用)")
+    p.add_argument("id")
+    p.add_argument("role", choices=["bedtime", "wakeup", "none"])
+    p.set_defaults(func=cmd_role)
 
     p = sub.add_parser("archive", help="習慣を休止する(記録は残す)")
     p.add_argument("id")
