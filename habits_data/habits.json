@@ -96,9 +96,19 @@
       "value": 380.0
     },
     {
+      "habit": "sleep",
+      "date": "2026-09-24",
+      "value": 1440.0
+    },
+    {
       "habit": "wake",
       "date": "2026-09-24",
       "value": 360.0
+    },
+    {
+      "habit": "wake",
+      "date": "2026-09-25",
+      "value": 330.0
     }
   ]
 }
