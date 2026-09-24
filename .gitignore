@@ -14,3 +14,7 @@ __pycache__/
 venv/
 .pytest_cache/
 .ipynb_checkpoints/
+# 習慣トラッカー: 記録本体(habits.json)は Claude Code から管理するため追跡する。
+# 書き出した CSV と一時ファイルだけ除外する。
+habits_data/*.csv
+habits_data/*.tmp

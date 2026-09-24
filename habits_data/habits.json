@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "habits": [
+    {
+      "id": "wake",
+      "name": "6時30分までに起きる",
+      "kind": "time",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": "<=",
+      "target": 390.0,
+      "unit": "",
+      "role": "wakeup",
+      "created": "2026-09-22",
+      "archived": false
+    },
+    {
+      "id": "deep",
+      "name": "集中作業",
+      "kind": "number",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": ">=",
+      "target": 2.0,
+      "unit": "h",
+      "role": "",
+      "created": "2026-09-22",
+      "archived": false
+    },
+    {
+      "id": "sleep",
+      "name": "24時までに寝る",
+      "kind": "time",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": "<=",
+      "target": 1440.0,
+      "unit": "",
+      "role": "bedtime",
+      "created": "2026-09-22",
+      "archived": false
+    },
+    {
+      "id": "home",
+      "name": "20時までに帰宅",
+      "kind": "time",
+      "schedule": {
+        "type": "daily"
+      },
+      "cmp": "<=",
+      "target": 1200.0,
+      "unit": "",
+      "role": "",
+      "created": "2026-09-22",
+      "archived": false
+    }
+  ],
+  "entries": [
+    {
+      "habit": "sleep",
+      "date": "2026-09-21",
+      "value": 1450.0
+    },
+    {
+      "habit": "home",
+      "date": "2026-09-22",
+      "value": 1200.0
+    },
+    {
+      "habit": "sleep",
+      "date": "2026-09-22",
+      "value": 1380.0
+    },
+    {
+      "habit": "wake",
+      "date": "2026-09-22",
+      "value": 380.0,
+      "note": "5:31に一度目覚め、二度寝して6:20起床"
+    },
+    {
+      "habit": "home",
+      "date": "2026-09-23",
+      "value": 1170.0
+    },
+    {
+      "habit": "sleep",
+      "date": "2026-09-23",
+      "value": 1380.0
+    },
+    {
+      "habit": "wake",
+      "date": "2026-09-23",
+      "value": 380.0
+    },
+    {
+      "habit": "sleep",
+      "date": "2026-09-24",
+      "value": 1440.0
+    },
+    {
+      "habit": "wake",
+      "date": "2026-09-24",
+      "value": 360.0
+    },
+    {
+      "habit": "wake",
+      "date": "2026-09-25",
+      "value": 330.0
+    }
+  ]
+}
